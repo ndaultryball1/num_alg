@@ -11,6 +11,12 @@ pub struct UniPoly {
 
 
 impl UniPoly {
+    pub fn new(coeffs: Vec<i64>) -> UniPoly {
+        let mut res: Vec<i64> = Vec::new();
+        let reved: Vec<i64> = coeffs.iter().rev().skip_while(|x| **x == 0).cloned().collect::<Vec<i64>>();
+        UniPoly{coeffs:reved.iter().rev().cloned().collect()}
+    }
+
     pub fn add(&self, other: &UniPoly) -> UniPoly {
         let mut res = Vec::new();
         for pair in self.coeffs.iter().zip_longest(other.coeffs.iter()) {
@@ -20,20 +26,29 @@ impl UniPoly {
                 Right(r) => res.push(*r)
             };
         }
-        UniPoly{coeffs :res}
+        UniPoly::new(res)
     }
 
     pub fn neg(&self) -> UniPoly {
-        UniPoly{coeffs: self.coeffs.iter().map(|x| -x ).collect()}
+        UniPoly::new(self.coeffs.iter().map(|x| -x ).collect())
     }
 
     pub fn mult(&self, other: &UniPoly) -> UniPoly {
         let len = self.coeffs.len() * other.coeffs.len();
         let mut res = vec![0; len];
         for ((i, exp_1), (j, exp_2)) in iproduct!(self.coeffs.iter().enumerate(), other.coeffs.iter().enumerate()) {
-            res[(i + 1) * (j + 1) - 1] += exp_1 * exp_2;
+            println!("{}x^{} * {}x^{} = {}x^{}", exp_1, i, exp_2, j, exp_1 * exp_2, i + j);
+            res[i + j] += exp_1 * exp_2;
         }
-        UniPoly{coeffs: res}
+        UniPoly::new(res)
+    }
+
+    pub fn monomial(coeff: i64, deg: i64) -> UniPoly {
+        let mut res = vec![0; (deg as usize) + 1];
+        if let Some(last) = res.last_mut() {
+            *last = coeff;
+        };
+        UniPoly::new(res)  
     }
 }
 
@@ -61,4 +76,15 @@ fn test_mult() {
     let ex_3 = UniPoly{coeffs:vec!(2, 3)};
     assert_eq!(ex_1.mult(&ex_3).coeffs, vec!(2,7,12,9))
 
+}
+
+#[test]
+fn test_mon() {
+    assert_eq!(UniPoly::monomial(5, 0).coeffs, vec!(5));
+}
+
+#[test]
+fn test_new() {
+    // Test creating a poly correctly deals with trailing zeros.
+    assert_eq!(UniPoly::new(vec!(2,3,5,0,0,6,0,0)).coeffs, vec!(2,3,5,0,0,6));
 }
