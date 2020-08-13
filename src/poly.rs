@@ -5,23 +5,23 @@ use itertools::{
 };
 
 use num_traits::Num;
+use std::ops::{Add, Sub, Mul};
 
-struct UniPoly<T: Num> {
+#[derive(Clone, Eq, Debug)]
+struct UniPoly<T: Num + Copy> {
     coeffs: Vec<T>,
 }
 
-
-impl<T: Num + std::clone::Clone> UniPoly<T> {
-    
-    // Implementation of polynomial in a single variable, an element of k[x].
-
-    fn new(coeffs: Vec<T>) -> UniPoly<T> {
-        let mut res: Vec<T> = Vec::new();
-        let reved: Vec<T> = coeffs.iter().rev().skip_while(|x| **x == T::zero()).cloned().collect::<Vec<i64>>();
-        UniPoly{coeffs:reved.iter().rev().cloned().collect()}
+impl<T: PartialEq + Copy + Num> PartialEq for UniPoly<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.coeffs == other.coeffs
     }
+}
 
-    fn add(&self, other: &UniPoly<T>) -> UniPoly<T> {
+impl<T: Num + Copy> Add<&UniPoly<T>> for &UniPoly<T> {
+    type Output = UniPoly<T>;
+    
+    fn add(self, other: &UniPoly<T>) -> UniPoly<T> {
         let mut res = Vec::new();
         for pair in self.coeffs.iter().zip_longest(other.coeffs.iter()) {
             match pair {
@@ -32,19 +32,44 @@ impl<T: Num + std::clone::Clone> UniPoly<T> {
         }
         UniPoly::new(res)
     }
+}
 
-    fn neg(&self) -> UniPoly<T> {
-        UniPoly::new(self.coeffs.iter().map(|&x| T::zero() - x ).collect())
+impl<T: Num + Copy> Sub for UniPoly<T> {
+    type Output = Self;
+    
+    fn sub(self, other: UniPoly<T>) -> UniPoly<T> {
+        self + other.neg()
     }
+}
 
-    fn mult(&self, other: &UniPoly<T>) -> UniPoly<T> {
+impl<T:Num + Copy> Mul for UniPoly<T> {
+    type Output = Self;
+
+    fn mul(self, other: UniPoly<T>) -> UniPoly<T> {
         let len = self.coeffs.len() * other.coeffs.len();
         let mut res = vec![T::zero(); len];
         for ((i, exp_1), (j, exp_2)) in iproduct!(self.coeffs.iter().enumerate(), other.coeffs.iter().enumerate()) {
-            dbg!("{}x^{} * {}x^{} = {}x^{}", exp_1, i, exp_2, j, *exp_1 * *exp_2, i + j);
             res[i + j] = res[i + j] + (*exp_1 * *exp_2);
         }
         UniPoly::new(res)
+    }
+}
+
+
+
+impl<T: Num + Copy> UniPoly<T> {
+    
+    // Implementation of polynomial in a single variable, an element of k[x].
+
+    fn new(coeffs: Vec<T>) -> UniPoly<T> {
+        let reved: Vec<T> = coeffs.iter().rev().skip_while(|x| **x == T::zero()).cloned().collect();
+        UniPoly{coeffs:reved.iter().rev().cloned().collect()}
+    }
+
+    
+
+    fn neg(&self) -> UniPoly<T> {
+        UniPoly::new(self.coeffs.iter().map(|&x| T::zero() - x ).collect())
     }
 
     fn monomial(coeff: T, deg: i64) -> UniPoly<T> {
@@ -68,17 +93,19 @@ impl<T: Num + std::clone::Clone> UniPoly<T> {
         // Implements the division algorithm in k[x]. 
         // Returns (q, r) where self = f * other + r
         // In the book - self is f, other is g.
-        let mut q: &UniPoly<T>; // Result
-        let mut r: &UniPoly<T> = &self; // Remainder
+        let mut q: UniPoly<T> = UniPoly::monomial(T::zero(), 0); // Result
+        let mut r: UniPoly<T> = self.clone(); // Remainder
         let ltg = other.lead_term();
         while (r.coeffs != vec!(T::zero())) & (r.lead_term().degree() > other.lead_term().degree()) {
-            q = &q.add(r.lead_term().div_mono(&ltg));
-            r = &r.add(r.lead_term().div_mono(&ltg).mult(other).neg())
+            q = &q + &r.lead_term().div_mono(&ltg);
+            r = &r + &(r.lead_term().div_mono(&ltg) * other.clone()).neg()
         }
-
-        (*q, *r)
-
+        (q, r)
     }
+
+    fn div_mono(&self, other: &UniPoly<T>) -> UniPoly<T> {
+        UniPoly::monomial(*self.clone().coeffs.last().unwrap() / *other.clone().coeffs.last().unwrap(), self.degree() - other.degree())
+    } 
 }
 
 
@@ -92,23 +119,23 @@ mod test_uni {
         let ex_1 = UniPoly{coeffs:vec!(1,2,3,4)};
         let ex_2 = UniPoly{coeffs:vec!(2,2,2,2)};
         // Add same degree
-        assert_eq!(ex_1.add(&ex_2).coeffs, vec!(3,4,5,6));
+        assert_eq!((ex_1 + ex_2).coeffs, vec!(3,4,5,6));
         let ex_3 = UniPoly{coeffs: vec!(1,2)};
         // Different degrees
-        assert_eq!(ex_1.add(&ex_3).coeffs, vec!(2,4,3,4));
+        assert_eq!((ex_1 + ex_3).coeffs, vec!(2,4,3,4));
 
         // subtraction
-        assert_eq!(ex_1.add(&ex_3.neg()).coeffs, vec!(0,0,3,4));
+        assert_eq!((ex_1 - ex_3).coeffs, vec!(0,0,3,4));
     }
 
     #[test]
     fn test_mult() {
         let ex_1 = UniPoly{coeffs:vec!(1,2,3)};
         let ex_2 = UniPoly{coeffs:vec!(2)};
-        assert_eq!(ex_1.mult(&ex_2).coeffs, vec!(2,4,6));
+        assert_eq!((ex_1 * ex_2).coeffs, vec!(2,4,6));
 
         let ex_3 = UniPoly{coeffs:vec!(2, 3)};
-        assert_eq!(ex_1.mult(&ex_3).coeffs, vec!(2,7,12,9))
+        assert_eq!((ex_1 * ex_3).coeffs, vec!(2,7,12,9))
 
     }
 
@@ -121,5 +148,12 @@ mod test_uni {
     fn test_new() {
         // Test creating a poly correctly deals with trailing zeros.
         assert_eq!(UniPoly::new(vec!(0,2,3,5,0,0,6,0,0)).coeffs, vec!(0,2,3,5,0,0,6));
+    }
+
+    #[test]
+    fn test_div() {
+        let x_squared = UniPoly::new(vec!(0,0,1));
+        let x = UniPoly::new(vec!(0,1));
+        assert_eq!(x_squared.div(&x), (x, UniPoly::monomial(1, 1)));
     }
 }
