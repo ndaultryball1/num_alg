@@ -94,7 +94,7 @@ impl<T: Num + Copy + Debug> UniPoly<T> {
         let mut q: UniPoly<T> = UniPoly::monomial(T::zero(), 0); // Result
         let mut r: UniPoly<T> = self.clone(); // Remainder
         let ltg = other.lead_term();
-        while (r.coeffs != vec!(T::zero())) & (r.lead_term().degree() > other.lead_term().degree()) {
+        while (r.coeffs != vec!(T::zero())) & (r.lead_term().degree() >= other.lead_term().degree()) {
             println!("q: {:?}, r: {:?}", q, r);
             q = q.add(&r.lead_term().div_mono(&ltg));
             r = r.sub(&(r.lead_term().div_mono(&ltg).mul(&other)))
@@ -103,6 +103,7 @@ impl<T: Num + Copy + Debug> UniPoly<T> {
     }
 
     fn div_mono(&self, other: &UniPoly<T>) -> UniPoly<T> {
+        // Problems with integer coefficients? We shouldnt be handling non-fields anyway...
         UniPoly::monomial(*self.coeffs.last().unwrap() / *other.coeffs.last().unwrap(), self.degree() - other.degree())
     } 
 }
@@ -167,5 +168,15 @@ mod test_uni {
         let three_x_cubed = UniPoly::monomial(3, 3);
         assert_eq!(x_squared.div(&x), (x, UniPoly::monomial(0, 0)));
         assert_eq!(three_x_cubed.div(&x_squared), (UniPoly::monomial(3, 1), UniPoly::monomial(0, 0)));
+    }
+
+    #[test]
+    fn test_div_long() {
+        let cubic = UniPoly::new(vec!(-3, 2, -4, 1));
+        let lin = UniPoly::new(vec!(2,1));
+        
+        let res = UniPoly::new(vec!(14, -6, 1));
+        let rem = UniPoly::monomial(-31, 0);
+        assert_eq!(cubic.div(&lin), (res, rem)); 
     }
 }
